@@ -1,0 +1,33 @@
+GET product_v2/_search
+{
+  "size": 10000,
+  "_source": ["sku",
+  "enName",
+  "enDescription",
+  "slug",
+  "enCategoryName",
+  "categoryId",
+  "price",
+    "stocks.prices.kw.price.kw",
+    "stocks.prices.kw.selling_price.kw",
+    "stocks.prices.kw.discount",
+  "inventory",
+  "brand.englishName",
+  "brand.id",
+  "gender",
+  "attributeSetName"],
+  "query": {
+    "match": {
+      "attributeSetName":"Fragrance_set"
+    }
+  }
+}
+
+
+-----------------------------------------
+attributeSetName:[
+Fragrance_set,  // 10,000 Products 
+Beauty_set // 10,000 Products 
+]  
+-----------------------------------------
+											

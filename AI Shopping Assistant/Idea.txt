@@ -1,0 +1,79 @@
+AI Shopping Assistant
+
+What it does
+
+Users ask:
+
+“Show me Arabic perfumes for women under 40 KD with oud and vanilla notes”
+“I want something like Tom Ford Oud Wood but cheaper”
+“Gift perfume for wedding”
+“Long-lasting spicy fragrance for winter”
+“Best perfume for office use”
+
+The assistant:
+
+understands intent
+retrieves products using RAG + vector search
+ranks products intelligently
+explains recommendations naturally
+remembers session context
+
+Why normal search fails
+
+Elasticsearch keyword search cannot understand:
+
+intent
+fragrance similarity
+occasion
+mood
+semantic meaning
+
+LLM + vector retrieval solves this.
+
+
+Best Feature Set
+A. Semantic Product Search
+
+Instead of:
+
+“oud perfume”
+
+Users search:
+
+“luxury warm winter scent with leather and vanilla”
+
+This alone can outperform competitors.
+
+
+B. AI Product Comparison
+
+Example:
+
+Compare Urban Oud vs Dior Sauvage
+
+LLM generates:
+
+fragrance profile
+longevity
+projection
+occasion
+value-for-money
+similar audience
+
+Huge engagement feature.
+
+C. Conversational Filters
+
+Instead of dropdown filters:
+
+“Show premium spicy perfumes below 50 KD for evening events”
+
+LLM converts natural language into:
+
+structured ES filters
+vector queries
+
+This becomes your “AI Search Layer”.
+
+
+-------------------------------------------------------------------------------------------------------------
