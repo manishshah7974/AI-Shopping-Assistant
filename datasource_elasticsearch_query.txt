@@ -1,7 +1,7 @@
 GET product_v2/_search
 {
-  "from":5000,
-  "size": 5000,
+  "from": 0,
+  "size": 10000,
   "_source": [
     "sku",
     "enName",
@@ -68,11 +68,9 @@ GET product_v2/_search
 }
 
 
------------------------------------------
+----------------------------------------------------------------------------------------
 attributeSetName:[
-Fragrance_set,  // 10,000 Products 
-Beauty_set // 10,000 Products 
+Fragrance_set,   // 10,000 Products 
+Beauty_set       // 10,000 Products 
 ]  
------------------------------------------
-so using the same rag code with little bit changes what are the best suitable   features i can built using this dataset  This json where i have all the product in most selling categories Fragrance_set (10,000 Products)  & Beauty_set (10,000 Products) of my ecommerce 
-C:\Users\24IN214\Desktop\AI Shopping Assistant Project\AI Shopping Assistant\Fragrance_and_Beauty_cleaned.json
+---------------------------------------------------------------------------------------
