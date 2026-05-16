@@ -316,14 +316,44 @@ The intelligence comes from:
       /filter <query>        - Filtered search (follow prompts)
       /quit                  - Exit
 
-    You: /search oud perfume for men
+Query 1:
+You: /search sandalwood fragnance perfumes 
 
-      1. Oud For Greatness Hair Perfume - 50ml
-         Brand: Initio | Price: 35.25 | In Stock
-         Gender: Female, Male
-      2. Parisian Oud Eau de Parfum - 100ml
-         Brand: Franck Olivier | Price: 29.4 | In Stock
-         Gender: Female, Male
-      3. Dehn Collection Perfumes - Oud Perfume Oil - 6ml
-         Brand: Aouj | Price: 6.8 | In Stock
-         Gender: Female, Male
+  1. Flowers W Eau de Parfum - 75ml
+     Brand: OSMA | Price: 5.69 (70% off) | In Stock
+     Gender: Female, Male
+     SKU: ORL-00007219
+     URL: https://www.boutiqaat.com/en-kw/women/osma-perfume-w-flowers-75ml-orl-00007219-1/p/
+  2. Mood 11 Home Scent Spray - 200ml
+     Brand: Reef Perfumes | Price: 5.8 (60% off) | In Stock
+     Gender: Female, Male
+     SKU: ORL-00004155
+     URL: https://www.boutiqaat.com/en-kw/women/mood-11-home-scent-spray-200ml-unisex-by-reef-perfumes-orl-00004155/p/
+  3. More S Eau de Parfum - 100ml
+     Brand: Charlotte Tilbury | Price: 56 | In Stock
+     Gender: Female, Male
+     SKU: FR-00005989
+     URL: https://www.boutiqaat.com/en-kw/women/charlotte-tilbury-fragrance-100ml-more-s-me-fr-00005989-1/p/
+  4. Flower Lust Extrait de Parfum - 90ml
+     Brand: d'Orsay | Price: 89 | In Stock
+     Gender: Female, Male
+     SKU: FR-00006727
+     URL: https://www.boutiqaat.com/en-kw/women/dorsay-flower-lust-extdeparfum-90ml-fr-00006727-1/p/
+  5. More S Eau de Parfum - 10ml
+     Brand: Charlotte Tilbury | Price: 10 | In Stock
+     Gender: Female, Male
+     SKU: FR-00005995
+     URL: https://www.boutiqaat.com/en-kw/women/charlotte-tilbury-fragrance-10ml-more-s-me-fr-00005995-1/p/
+
+Query 2:
+You: /chat  best honey aud perfume between 30 kwd to 50 kwd top 5
+
+Assistant: Based on your query, I'd recommend the following top 5 honey/oud perfumes between 30 KWD to 50 KWD:
+
+1. Oud For Greatness Hair Perfume (35.25 KWD) by Initio - https://www.boutiqaat.com/en-kw/women/initio-oud-for-greatness-hair-perfume-50ml-fr-00004782-1/p/
+2. Unfortunately, we don't have many options in this range, but I can suggest the Honeysuckle & Davana Cologne (23.75 KWD) by Jo Malone London, which is slightly below your budget - https://www.boutiqaat.com/en-kw/women/jo-malice-london-honeysuckle-davana-cologne-fr-00003054/p/        
+3. Since there aren't many options that fit your exact criteria, I'd like to suggest the Bullet Eau de Parfum (24.5 KWD) by Arabian Oud, which is also slightly below your budget - https://www.boutiqaat.com/en-kw/women/bullet-perfume-100ml-orl-00009080-1/p/
+4. The Small Zayed Garden Candle (34.6 KWD) by Alchimie is another option, although it's a candle, not a perfume - https://www.boutiqaat.com/en-kw/women/alchimie-zayed-garden-candle-olivee-medium-ac-00016095-1/p/
+5. The Cologne Discovery Collection (6.5 KWD) by Jo Malone London is not within your budget range, but it's a great way to try out different scents - https://www.boutiqaat.com/en-kw/women/jo-malone-london-cologne-discovery-collection-fr-00003095/p/
+
+Please note that options are limited, and most of these products are either slightly below your budget or not exactly what you're looking for. I hope this helps, and I'm happy to assist you further!

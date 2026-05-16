@@ -98,9 +98,14 @@ def print_results(results):
         m = r["metadata"]
         discount = f" ({m['discountPercentage']}% off)" if m["discountPercentage"] > 0 else ""
         stock = "In Stock" if m["inventory"] > 0 else "Out of Stock"
+        url = f"https://www.boutiqaat.com/en-kw/women/{m['slug']}" if m.get("slug") else ""
         print(f"  {i}. {m['name']}")
         print(f"     Brand: {m['brandName']} | Price: {m['sellingPrice']}{discount} | {stock}")
         print(f"     Gender: {', '.join(m['gender'])}")
+        if m.get("sku"):
+            print(f"     SKU: {m['sku']}")
+        if url:
+            print(f"     URL: {url}")
     print()
 
 

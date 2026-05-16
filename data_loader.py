@@ -27,6 +27,7 @@ def load_products(json_path: str) -> List[Dict]:
             "categoryName": product.get("categoryName", []),
             "attributeSetName": product.get("attributeSetName", ""),
             "slug": product.get("slug", ""),
+            "sku": product.get("sku", ""),
         }
 
         documents.append({"text": text, "metadata": metadata})
