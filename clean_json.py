@@ -1,8 +1,8 @@
 import json
 import re
 
-INPUT = r"C:\Users\24IN214\Desktop\AI Shopping Assistant Project\AI Shopping Assistant\Fragrance_and_Beauty_dataset_.json"
-OUTPUT = r"C:\Users\24IN214\Desktop\AI Shopping Assistant Project\AI Shopping Assistant\Fragrance_and_Beauty_cleaned.json"
+INPUT = r"C:\Users\24IN214\Desktop\AI Shopping Assistant Project\Fragrance_and_Beauty_dataset_.json"
+OUTPUT = r"C:\Users\24IN214\Desktop\AI Shopping Assistant Project\Fragrance_and_Beauty_cleaned.json"
 
 GENDER_MAP = {"4194": "Female", "2741": "Male"}
 
