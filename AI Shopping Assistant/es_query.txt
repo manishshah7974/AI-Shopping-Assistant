@@ -74,4 +74,5 @@ Fragrance_set,  // 10,000 Products
 Beauty_set // 10,000 Products 
 ]  
 -----------------------------------------
-											
+so using the same rag code with little bit changes what are the best suitable   features i can built using this dataset  This json where i have all the product in most selling categories Fragrance_set (10,000 Products)  & Beauty_set (10,000 Products) of my ecommerce 
+C:\Users\24IN214\Desktop\AI Shopping Assistant Project\AI Shopping Assistant\Fragrance_and_Beauty_cleaned.json
