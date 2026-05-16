@@ -1,24 +1,68 @@
 GET product_v2/_search
 {
-  "size": 10000,
-  "_source": ["sku",
-  "enName",
-  "enDescription",
-  "slug",
-  "enCategoryName",
-  "categoryId",
-  "price",
-    "stocks.prices.kw.price.kw",
-    "stocks.prices.kw.selling_price.kw",
-    "stocks.prices.kw.discount",
-  "inventory",
-  "brand.englishName",
-  "brand.id",
-  "gender",
-  "attributeSetName"],
+  "from":5000,
+  "size": 5000,
+  "_source": [
+    "sku",
+    "enName",
+    "enDescription",
+    "slug",
+    "enCategoryName",
+    "inventory",
+    "brand.englishName",
+    "brand.id",
+    "gender",
+    "attributeSetName"
+  ],
+    "script_fields": {
+    "price": {
+      "script": {
+        "lang": "painless",
+        "source": """
+          if (params._source.containsKey('stocks')) {
+            return params._source.stocks.prices.kw.price.kw;
+          }
+          return null;
+        """
+      }
+    },
+    "selling_price": {
+      "script": {
+        "lang": "painless",
+        "source": """
+          if (params._source.containsKey('stocks')) {
+            return params._source.stocks.prices.kw.selling_price.kw;
+          }
+          return null;
+        """
+      }
+    },
+     "discount": {
+      "script": {
+        "lang": "painless",
+        "source": """
+          if (params._source.containsKey('stocks')) {
+            return params._source.stocks.prices.kw.discount;
+          }
+          return null;
+        """
+      }
+    }
+  },
   "query": {
-    "match": {
-      "attributeSetName":"Fragrance_set"
+    "bool": {
+      "must": [
+        {
+          "term": {
+            "enabled": true
+          }
+        },
+        {
+          "match": {
+            "attributeSetName": "Beauty_set"
+          }
+        }
+      ]
     }
   }
 }
