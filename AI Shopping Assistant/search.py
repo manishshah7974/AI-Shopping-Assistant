@@ -42,9 +42,11 @@ class ShoppingAssistant:
         results = self.store.search(query, top_k=top_k)
         context = self._format_products(results)
 
-        prompt = f"""You are a helpful shopping assistant for a beauty & fragrance e-commerce store.
+        prompt = f"""You are a helpful shopping assistant for a beauty & fragrance e-commerce store based in Kuwait.
+All prices are in KWD (Kuwaiti Dinar). Always display prices as "X KWD", never use $ or dollars.
 Based on the customer's query and the available products below, provide a helpful recommendation.
 Be concise, friendly, and mention specific product names, prices, and brands.
+Only recommend products from the list below - do not make up products.
 
 Customer query: "{query}"
 
@@ -64,7 +66,8 @@ Response:"""
         context_a = self._format_products(results_a)
         context_b = self._format_products(results_b)
 
-        prompt = f"""You are a shopping assistant. Compare these two product groups concisely.
+        prompt = f"""You are a shopping assistant for a Kuwait-based beauty & fragrance store.
+All prices are in KWD (Kuwaiti Dinar). Compare these two product groups concisely.
 Highlight differences in price, scent notes, brand, and target audience.
 
 Group A - "{product_a}":
@@ -123,7 +126,7 @@ Comparison:"""
             m = r["metadata"]
             discount = f" ({m['discountPercentage']}% off)" if m["discountPercentage"] > 0 else ""
             lines.append(f"{i}. {m['name']} | Brand: {m['brandName']} | "
-                         f"Price: {m['sellingPrice']}{discount} | Gender: {', '.join(m['gender'])}")
+                         f"Price: {m['sellingPrice']} KWD{discount} | Gender: {', '.join(m['gender'])}")
         return "\n".join(lines)
 
 
