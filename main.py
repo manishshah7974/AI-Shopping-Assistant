@@ -1,27 +1,26 @@
 """AI Shopping Assistant - Main Entry Point"""
-import os
 from vectorstore import VectorStore
 from search import ShoppingAssistant
 
 JSON_PATH = "Fragrance_and_Beauty_cleaned.json"
-INDEX_DIR = "faiss_index"
 
 
 def build_index():
-    """Build FAISS index from product data (one-time setup)."""
-    store = VectorStore(INDEX_DIR)
+    """Build Redis vector index from product data (one-time setup)."""
+    store = VectorStore()
     store.build_index(JSON_PATH)
     print("\nIndex built! You can now run queries.")
 
 
 def main():
     """Interactive shopping assistant."""
-    # Build index if not exists
-    if not os.path.exists(os.path.join(INDEX_DIR, "index.faiss")):
-        print("No index found. Building index first (this takes ~5 minutes)...")
-        build_index()
+    # Build index if not exists in Redis
+    store = VectorStore()
+    if not store.index.exists():
+        print("No Redis index found. Building index first (this takes a few minutes)...")
+        store.build_index(JSON_PATH)
 
-    assistant = ShoppingAssistant(INDEX_DIR)
+    assistant = ShoppingAssistant()
 
     print("\n" + "=" * 60)
     print("  AI Shopping Assistant - Fragrance & Beauty")

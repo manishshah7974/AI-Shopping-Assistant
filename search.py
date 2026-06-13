@@ -15,7 +15,7 @@ try:
     semantic_cache = SemanticCache(
         name="shopping_llm_cache",
         redis_url=REDIS_URL,
-        distance_threshold=0.2,
+        distance_threshold=0.05,
     )
     print("[INFO] Redis semantic cache enabled.")
 except Exception as e:
@@ -23,8 +23,8 @@ except Exception as e:
 
 
 class ShoppingAssistant:
-    def __init__(self, persist_dir: str = "faiss_index"):
-        self.store = VectorStore(persist_dir)
+    def __init__(self):
+        self.store = VectorStore()
         self.store.load()
 
         # LLM setup (Groq)
