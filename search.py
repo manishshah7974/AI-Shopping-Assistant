@@ -5,6 +5,22 @@ from vectorstore import VectorStore
 
 load_dotenv()
 
+# ─── Redis Semantic Cache Setup ───
+REDIS_URL = os.getenv("REDIS_URL", "")
+semantic_cache = None
+
+try:
+    from redisvl.extensions.cache.llm import SemanticCache
+
+    semantic_cache = SemanticCache(
+        name="shopping_llm_cache",
+        redis_url=REDIS_URL,
+        distance_threshold=0.2,
+    )
+    print("[INFO] Redis semantic cache enabled.")
+except Exception as e:
+    print(f"[WARN] Redis semantic cache not available: {e}")
+
 
 class ShoppingAssistant:
     def __init__(self, persist_dir: str = "faiss_index"):
@@ -55,8 +71,7 @@ Available products:
 {context}
 
 Response:"""
-        response = self.llm.invoke([prompt])
-        return response.content
+        return self._cached_llm_call(prompt)
 
     # ─── USE CASE 4: Compare Products ───
     def compare(self, product_a: str, product_b: str) -> str:
@@ -79,8 +94,7 @@ Group B - "{product_b}":
 {context_b}
 
 Comparison:"""
-        response = self.llm.invoke([prompt])
-        return response.content
+        return self._cached_llm_call(prompt)
 
     # ─── USE CASE 5: Smart Filtering (search + metadata filter) ───
     def filtered_search(self, query: str, top_k: int = 20,
@@ -114,6 +128,19 @@ Comparison:"""
         return self.store.search(product_name, top_k=top_k + 1)[1:]
 
     # ─── Helpers ───
+    def _cached_llm_call(self, prompt: str) -> str:
+        """Call LLM with Redis semantic cache check."""
+        if semantic_cache:
+            cached = semantic_cache.check(prompt=prompt)
+            if cached:
+                print("  [CACHE HIT]")
+                return cached[0]["response"]
+        response = self.llm.invoke([prompt])
+        result = response.content
+        if semantic_cache:
+            semantic_cache.store(prompt=prompt, response=result)
+        return result
+
     def _find_product_index(self, product_name: str) -> Optional[int]:
         """Find the index of a product by name in metadata."""
         for i, m in enumerate(self.store.metadata):

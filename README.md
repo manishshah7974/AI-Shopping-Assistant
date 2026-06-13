@@ -50,8 +50,8 @@ AI Shopping Assistant Project/
 ### Installation
 
 ```bash
-pip install sentence-transformers faiss-cpu langchain-groq python-dotenv
-py -m pip install sentence-transformers faiss-cpu langchain-groq python-dotenv [For Windows]
+pip install sentence-transformers faiss-cpu langchain-groq python-dotenv redisvl redis
+py -m pip install sentence-transformers faiss-cpu langchain-groq python-dotenv redisvl redis [For Windows]
 ```
 
 ### API Key
