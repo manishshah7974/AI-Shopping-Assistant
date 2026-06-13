@@ -10,11 +10,17 @@ A RAG-powered (Retrieval-Augmented Generation) shopping assistant for a Kuwait-b
 User Query
     │
     ▼
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│ Embedding    │────▶│ FAISS Index  │────▶│ LLM (Groq)   │
-│ (MiniLM-L6) │     │ (20k vectors)│     │ (Llama 3.3)  │
-└──────────────┘     └──────────────┘     └──────────────┘
-    384-dim vectors    Similarity search    Conversational response
+┌──────────────┐     ┌──────────────────┐     ┌──────────────┐
+│ Embedding    │────▶│ Redis Vector DB   │────▶│ LLM (Groq)   │
+│ (MiniLM-L6) │     │ (Cosine Search)   │     │ (Llama 3.3)  │
+└──────────────┘     └──────────────────┘     └──────────────┘
+    384-dim vectors    Similarity search      Conversational response
+                             │
+                    ┌────────┴────────┐
+                    │ Redis Semantic  │
+                    │ Cache (redisvl) │
+                    └─────────────────┘
+                    Caches LLM responses (24h TTL)
 ```
 
 All 6 use cases share the same core pipeline — the difference is only in what prompt goes to the LLM and whether metadata filtering is applied after retrieval.
@@ -25,17 +31,14 @@ All 6 use cases share the same core pipeline — the difference is only in what 
 
 ```
 AI Shopping Assistant Project/
-├── .env                              ← Groq API key
+├── .env                              ← Groq API key + Redis URL
 ├── main.py                           ← Interactive CLI entry point
-├── search.py                         ← ShoppingAssistant class (all 6 use cases)
-├── vectorstore.py                    ← FAISS index build/load/search
+├── search.py                         ← ShoppingAssistant class (all 6 use cases + semantic cache)
+├── vectorstore.py                    ← Redis vector index build/load/search (via redisvl)
 ├── embedding.py                      ← Sentence-transformer embedding model
 ├── data_loader.py                    ← JSON loader + text/metadata structuring
 ├── clean_json.py                     ← One-time data cleaning script
-├── Fragrance_and_Beauty_cleaned.json ← Cleaned product dataset (20k products)
-└── faiss_index/                      ← Pre-built FAISS index
-    ├── index.faiss
-    └── metadata.pkl
+└── Fragrance_and_Beauty_cleaned.json ← Cleaned product dataset (20k products)
 ```
 
 ---
@@ -46,23 +49,25 @@ AI Shopping Assistant Project/
 
 - Python 3.10+
 - pip
+- Redis Cloud instance (with RediSearch module enabled)
 
 ### Installation
 
 ```bash
-pip install sentence-transformers faiss-cpu langchain-groq python-dotenv
-py -m pip install sentence-transformers faiss-cpu langchain-groq python-dotenv [For Windows]
+pip install sentence-transformers langchain-groq python-dotenv redisvl redis
+py -m pip install sentence-transformers langchain-groq python-dotenv redisvl redis [For Windows]
 ```
 
-### API Key
+### API Keys & Redis
 
 Get a free key from [Groq Console](https://console.groq.com/keys) and add it to `.env`:
 
 ```
 GROQ_API_KEY=your_key_here
+REDIS_URL=redis://default:<password>@<host>:<port>
 ```
 
-> The assistant works **without** an API key for search/filter/similar features. Only `/chat` and `/compare` require the LLM.
+> The assistant works **without** a Groq API key for search/filter/similar features. Only `/chat` and `/compare` require the LLM.
 
 ### Run
 
@@ -70,7 +75,7 @@ GROQ_API_KEY=your_key_here
 python main.py
 ```
 
-On first run, the FAISS index is built automatically (~5 minutes for 20k products). Subsequent runs load instantly from disk.
+On first run, if no Redis index exists, it builds the vector index automatically (embeds all products and loads them into Redis). Subsequent runs connect instantly.
 
 ---
 
@@ -83,7 +88,7 @@ On first run, the FAISS index is built automatically (~5 minutes for 20k product
 | `/chat I need a gift for my mom, floral, budget 30` | Conversational assistant | Yes |
 | `/compare Calvin Klein vs OSMA` | Compare products/brands | Yes |
 | `/filter skincare` (then follow prompts) | Smart filtering | No |
-| Just type anything | Auto: chat if API key set, else search | Depends |
+| Just type anything | Defaults to chat mode | Yes |
 | `/quit` | Exit | — |
 
 ---
@@ -94,11 +99,11 @@ On first run, the FAISS index is built automatically (~5 minutes for 20k product
 
 > "Show me vanilla-based perfumes under 20 dinars for women"
 
-The RAG pipeline embeds product descriptions and the user query into the same 384-dimensional vector space. FAISS finds the most semantically similar products. Much better than keyword search because it understands intent — "long-lasting scent" matches products mentioning "24-hour wear" even without exact word overlap.
+The RAG pipeline embeds product descriptions and the user query into the same 384-dimensional vector space. Redis vector search finds the most semantically similar products. Much better than keyword search because it understands intent — "long-lasting scent" matches products mentioning "24-hour wear" even without exact word overlap.
 
 **How it works in code:**
 - `search.py` → `search_products(query, top_k)` calls `VectorStore.search()`
-- `vectorstore.py` → embeds the query using `EmbeddingModel.embed_query()`, runs `faiss.IndexFlatL2.search()`, returns top-K results with metadata
+- `vectorstore.py` → embeds the query using `EmbeddingModel.embed_query()`, runs cosine similarity search on Redis, returns top-K results with metadata
 
 **Example:**
 
@@ -121,7 +126,7 @@ Uses vector similarity to find products with similar scent profiles/ingredients.
 
 **How it works in code:**
 - `search.py` → `recommend_similar(product_name)` finds the product in the index, then calls `VectorStore.search_by_index()`
-- `vectorstore.py` → `search_by_index(idx)` reconstructs the product's vector using `faiss.reconstruct()` and finds its nearest neighbors
+- `vectorstore.py` → `search_by_index(idx)` retrieves the product's vector from Redis and finds its nearest neighbors
 
 **Example:**
 
@@ -179,7 +184,7 @@ Retrieves products from both brands via semantic search, feeds both sets to the 
 Combines vector search with metadata filtering. First retrieves semantically relevant candidates via embeddings, then post-filters on structured fields (price, discount, inventory, gender).
 
 **How it works in code:**
-- `search.py` → `filtered_search(query, max_price, gender, category, in_stock)` retrieves top-20 via FAISS, then filters by metadata constraints
+- `search.py` → `filtered_search(query, max_price, gender, category, in_stock)` retrieves top-20 via Redis vector search, then filters by metadata constraints
 - Supports filtering by: max price, gender, category, and stock availability
 
 **Example:**
@@ -200,11 +205,11 @@ Combines vector search with metadata filtering. First retrieves semantically rel
 
 > User is viewing Product X → "Show me similar products"
 
-Embeds the current product, queries FAISS for nearest neighbors. Pure vector similarity — no LLM needed.
+Embeds the current product, queries Redis for nearest neighbors. Pure vector similarity — no LLM needed.
 
 **How it works in code:**
 - `search.py` → `find_similar(product_name)` looks up the product's index in metadata, then calls `VectorStore.search_by_index()`
-- `vectorstore.py` → reconstructs the product's embedding vector and finds the closest vectors in the index (excluding itself)
+- `vectorstore.py` → retrieves the product's embedding vector from Redis and finds the closest vectors in the index (excluding itself)
 
 **Example:**
 
@@ -246,27 +251,29 @@ Converts product text into 384-dimensional numerical vectors using `all-MiniLM-L
 
 When a user asks "vanilla perfume for women", the query vector will be mathematically close to product vectors that mention vanilla, feminine fragrances, etc. — even if the exact words don't match.
 
-### `vectorstore.py` — FAISS Index & Search
+### `vectorstore.py` — Redis Vector Index & Search
 
-Stores all 20,000 product embeddings in a FAISS index for fast similarity search.
+Stores all product embeddings in a Redis Cloud vector index for fast cosine similarity search (via `redisvl`).
 
-- `build_index(json_path)` — One-time: loads products → embeds all 20k → stores in FAISS + saves to disk
-- `load()` — Loads the pre-built index from `faiss_index/` (instant)
+- `build_index(json_path)` — One-time: loads products → embeds all → stores in Redis with metadata
+- `load()` — Connects to existing Redis index (instant)
 - `search(query, top_k)` — Embeds query → finds top-K nearest products → returns metadata
 - `search_by_index(product_idx, top_k)` — Given a product index, finds its most similar products (for "Find Similar")
 
-### `search.py` — ShoppingAssistant Class (All 6 Use Cases)
+### `search.py` — ShoppingAssistant Class (All 6 Use Cases + Semantic Cache)
 
-The brain of the application. Contains all use case methods:
+The brain of the application. Contains all use case methods and integrates **Redis Semantic Cache** for LLM responses:
 
-| Method | Use Case | Needs LLM? |
-|--------|----------|------------|
-| `search_products(query)` | Semantic search → returns products | No |
-| `recommend_similar(product_name)` | Finds product, returns nearest neighbors | No |
-| `chat(query)` | Retrieves products + LLM generates conversational recommendation | Yes |
-| `compare(product_a, product_b)` | Retrieves both, LLM compares them | Yes |
-| `filtered_search(query, max_price, gender, ...)` | Semantic search + post-filter on metadata | No |
-| `find_similar(product_name)` | Pure vector similarity from a product's embedding | No |
+| Method | Use Case | Needs LLM? | Cached? |
+|--------|----------|------------|---------|
+| `search_products(query)` | Semantic search → returns products | No | No |
+| `recommend_similar(product_name)` | Finds product, returns nearest neighbors | No | No |
+| `chat(query)` | Retrieves products + LLM generates conversational recommendation | Yes | Yes |
+| `compare(product_a, product_b)` | Retrieves both, LLM compares them | Yes | Yes |
+| `filtered_search(query, max_price, gender, ...)` | Semantic search + post-filter on metadata | No | No |
+| `find_similar(product_name)` | Pure vector similarity from a product's embedding | No | No |
+
+**Semantic Cache**: LLM responses are cached using `redisvl`'s `SemanticCache`. Only the user's query (not the full prompt) is used as the cache key. Near-identical queries (distance < 0.2) return cached responses instantly. Cache entries expire after 24 hours.
 
 ### `main.py` — CLI Entry Point
 
@@ -282,18 +289,94 @@ Transforms the raw Elasticsearch export into a clean JSON format:
 
 ---
 
+## Redis Semantic Cache — How It Works
+
+The assistant uses `redisvl`'s `SemanticCache` to avoid redundant LLM API calls. When a user asks a question that's semantically near-identical to a previously asked question, the cached response is returned instantly instead of calling Groq again.
+
+### Flow
+
+```
+User asks "/chat best vanilla perfume under 20"
+    │
+    ▼
+┌───────────────────────────────┐
+│ Embed user query (MiniLM-L6) │
+└───────────────┬───────────────┘
+                │
+                ▼
+┌───────────────────────────────┐
+│ Check Redis Semantic Cache    │
+│ (cosine distance < 0.2?)     │
+└───────────┬───────────────────┘
+            │
+     ┌──────┴──────┐
+     │             │
+   HIT           MISS
+     │             │
+     ▼             ▼
+  Return       Call Groq LLM
+  cached       ──────────────▶ Store response
+  response                      in cache (24h TTL)
+```
+
+### Key Design Decisions
+
+| Setting | Value | Why |
+|---------|-------|-----|
+| Cache key | User query only | The full prompt includes retrieved products which change. Caching by user query means "best vanilla perfume" always hits cache regardless of which products are in context. |
+| Distance threshold | 0.2 | Balanced — matches semantically similar queries while avoiding false positives across different intents. |
+| TTL | 24 hours (86400s) | Product data can change (prices, stock). Daily expiry keeps recommendations fresh. |
+| Embedding model | `redis/langcache-embed-v1` (redisvl default) | Used only for cache similarity matching, separate from the product embedding model. |
+
+### What matches vs. what doesn't
+
+**Cache HIT (same response returned):**
+- "best vanilla perfume under 20" ↔ "best vanilla perfumes under 20 KWD"
+- "recommend a floral scent for women" ↔ "suggest floral fragrance for women"
+- "oud perfume for men under 30" ↔ "men's oud perfume below 30"
+- "gift for my mom floral budget 30" ↔ "floral gift for mom around 30 KWD"
+
+**Cache MISS (fresh LLM call):**
+- "vanilla perfume" ↔ "oud perfume for men"
+- "perfume under 20" ↔ "skincare under 20"
+- "gift for mom" ↔ "gift for dad"
+- "best floral perfume" ↔ "best woody perfume"
+- "cheap perfume" ↔ "luxury perfume over 50 KWD"
+
+### Configuration (in `search.py`)
+
+```python
+from redisvl.extensions.cache.llm import SemanticCache
+
+semantic_cache = SemanticCache(
+    name="shopping_llm_cache",
+    redis_url=REDIS_URL,
+    distance_threshold=0.2,
+    ttl=86400,  # 24 hours
+)
+```
+
+### Benefits
+
+- **Cost reduction**: Repeated/similar queries don't consume Groq API tokens
+- **Latency**: Cache hits return in ~50ms vs ~1-2s for a fresh LLM call
+- **Scalable**: Cache lives in the same Redis Cloud instance as the vector index — no extra infrastructure
+- **Automatic cleanup**: TTL ensures stale responses are purged daily
+
+---
+
 ## Why RAG Works Here
 
 The same pipeline powers all 6 features because:
 
 | Use Case | Retrieval | Generation |
 |----------|-----------|------------|
-| 1. Natural language search | Query → FAISS → top-K products | None (just display) |
-| 2. Recommendations | Product description → FAISS → similar products | None |
-| 3. Conversational assistant | Query → FAISS → relevant products | LLM filters by constraints & converses |
-| 4. Compare products | Brand/product names → FAISS → both sets | LLM compares |
-| 5. Smart filtering | Query → FAISS → candidates, then filter metadata | None |
-| 6. Find similar | Product embedding → FAISS → nearest neighbors | None |
+| 1. Natural language search | Query → Redis → top-K products | None (just display) |
+| 2. Recommendations | Product description → Redis → similar products | None |
+| 3. Conversational assistant | Query → Redis → relevant products | LLM filters by constraints & converses |
+| 4. Compare products | Brand/product names → Redis → both sets | LLM compares |
+| 5. Smart filtering | Query → Redis → candidates, then filter metadata | None |
+| 6. Find similar | Product embedding → Redis → nearest neighbors | None |
 
 The intelligence comes from:
 - **Rich text embeddings** — The combined text (name + brand + description + categories + gender + price) ensures semantic search finds products by scent notes, brand, category, or description
