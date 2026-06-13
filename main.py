@@ -78,13 +78,9 @@ def main():
             print_results(results[:5])
 
         else:
-            # Default: treat as chat if API key exists, else search
-            if os.getenv("GROQ_API_KEY"):
-                response = assistant.chat(user_input, top_k=5)
-                print(f"\nAssistant: {response}\n")
-            else:
-                results = assistant.search_products(user_input, top_k=5)
-                print_results(results)
+            # Default: always use chat mode
+            response = assistant.chat(user_input, top_k=5)
+            print(f"\nAssistant: {response}\n")
 
 
 def print_results(results):
