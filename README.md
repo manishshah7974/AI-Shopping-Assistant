@@ -289,6 +289,82 @@ Transforms the raw Elasticsearch export into a clean JSON format:
 
 ---
 
+## Redis Semantic Cache — How It Works
+
+The assistant uses `redisvl`'s `SemanticCache` to avoid redundant LLM API calls. When a user asks a question that's semantically near-identical to a previously asked question, the cached response is returned instantly instead of calling Groq again.
+
+### Flow
+
+```
+User asks "/chat best vanilla perfume under 20"
+    │
+    ▼
+┌───────────────────────────────┐
+│ Embed user query (MiniLM-L6) │
+└───────────────┬───────────────┘
+                │
+                ▼
+┌───────────────────────────────┐
+│ Check Redis Semantic Cache    │
+│ (cosine distance < 0.2?)     │
+└───────────┬───────────────────┘
+            │
+     ┌──────┴──────┐
+     │             │
+   HIT           MISS
+     │             │
+     ▼             ▼
+  Return       Call Groq LLM
+  cached       ──────────────▶ Store response
+  response                      in cache (24h TTL)
+```
+
+### Key Design Decisions
+
+| Setting | Value | Why |
+|---------|-------|-----|
+| Cache key | User query only | The full prompt includes retrieved products which change. Caching by user query means "best vanilla perfume" always hits cache regardless of which products are in context. |
+| Distance threshold | 0.2 | Balanced — matches semantically similar queries while avoiding false positives across different intents. |
+| TTL | 24 hours (86400s) | Product data can change (prices, stock). Daily expiry keeps recommendations fresh. |
+| Embedding model | `redis/langcache-embed-v1` (redisvl default) | Used only for cache similarity matching, separate from the product embedding model. |
+
+### What matches vs. what doesn't
+
+**Cache HIT (same response returned):**
+- "best vanilla perfume under 20" ↔ "best vanilla perfumes under 20 KWD"
+- "recommend a floral scent for women" ↔ "suggest floral fragrance for women"
+- "oud perfume for men under 30" ↔ "men's oud perfume below 30"
+- "gift for my mom floral budget 30" ↔ "floral gift for mom around 30 KWD"
+
+**Cache MISS (fresh LLM call):**
+- "vanilla perfume" ↔ "oud perfume for men"
+- "perfume under 20" ↔ "skincare under 20"
+- "gift for mom" ↔ "gift for dad"
+- "best floral perfume" ↔ "best woody perfume"
+- "cheap perfume" ↔ "luxury perfume over 50 KWD"
+
+### Configuration (in `search.py`)
+
+```python
+from redisvl.extensions.cache.llm import SemanticCache
+
+semantic_cache = SemanticCache(
+    name="shopping_llm_cache",
+    redis_url=REDIS_URL,
+    distance_threshold=0.2,
+    ttl=86400,  # 24 hours
+)
+```
+
+### Benefits
+
+- **Cost reduction**: Repeated/similar queries don't consume Groq API tokens
+- **Latency**: Cache hits return in ~50ms vs ~1-2s for a fresh LLM call
+- **Scalable**: Cache lives in the same Redis Cloud instance as the vector index — no extra infrastructure
+- **Automatic cleanup**: TTL ensures stale responses are purged daily
+
+---
+
 ## Why RAG Works Here
 
 The same pipeline powers all 6 features because:
