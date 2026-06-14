@@ -42,16 +42,7 @@ class ShoppingAssistant:
     # ─── USE CASE 2: Product Recommendations ───
     def recommend_similar(self, product_name: str, top_k: int = 5) -> List[Dict]:
         """Find products similar to a given product name."""
-        # First find the product in our index
-        matches = self.store.search(product_name, top_k=1)
-        if not matches:
-            return []
-        # Use its index to find similar products
-        idx = self._find_product_index(matches[0]["metadata"]["name"])
-        if idx is not None:
-            return self.store.search_by_index(idx, top_k=top_k)
-        # Fallback: search by the product's description
-        return self.store.search(product_name, top_k=top_k + 1)[1:]
+        return self._similar_via_redis(product_name, top_k)
 
     # ─── USE CASE 3: Conversational Shopping Assistant ───
     def chat(self, query: str, top_k: int = 5) -> str:
@@ -122,13 +113,26 @@ Comparison:"""
     # ─── USE CASE 6: Find Similar Products ───
     def find_similar(self, product_name: str, top_k: int = 5) -> List[Dict]:
         """Given a product name, find the most similar products."""
-        idx = self._find_product_index(product_name)
-        if idx is not None:
-            return self.store.search_by_index(idx, top_k=top_k)
-        # Fallback to text search
-        return self.store.search(product_name, top_k=top_k + 1)[1:]
+        return self._similar_via_redis(product_name, top_k)
 
     # ─── Helpers ───
+    def _similar_via_redis(self, product_name: str, top_k: int = 5) -> List[Dict]:
+        """Semantic search to find the product, then use its vector for similarity."""
+        # Step 1: Find the product in Redis via semantic search
+        matches = self.store.search(product_name, top_k=1)
+        if not matches:
+            return []
+        matched = matches[0]
+        # Step 2: Fetch that product's actual stored embedding from Redis
+        embedding = self.store.get_embedding_by_idx(matched["product_idx"])
+        if embedding is not None:
+            return self.store.search_by_vector(
+                embedding.tolist(), top_k=top_k,
+                exclude_name=matched["metadata"]["name"]
+            )
+        # Fallback: use text search results
+        return self.store.search(product_name, top_k=top_k + 1)[1:]
+
     def _cached_llm_call(self, prompt: str, cache_key: str) -> str:
         """Call LLM with Redis semantic cache. cache_key is the user query only."""
         if semantic_cache:
@@ -141,13 +145,6 @@ Comparison:"""
         if semantic_cache:
             semantic_cache.store(prompt=cache_key, response=result)
         return result
-
-    def _find_product_index(self, product_name: str) -> Optional[int]:
-        """Find the index of a product by name in metadata."""
-        for i, m in enumerate(self.store.metadata):
-            if m["name"].lower() == product_name.lower():
-                return i
-        return None
 
     def _format_products(self, results: List[Dict]) -> str:
         """Format product results into readable text for LLM context."""

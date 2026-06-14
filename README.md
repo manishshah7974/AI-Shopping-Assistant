@@ -125,8 +125,8 @@ The RAG pipeline embeds product descriptions and the user query into the same 38
 Uses vector similarity to find products with similar scent profiles/ingredients. The embeddings naturally cluster products with similar descriptions together — oud fragrances end up near other oud fragrances in the 384-dimensional space.
 
 **How it works in code:**
-- `search.py` → `recommend_similar(product_name)` finds the product in the index, then calls `VectorStore.search_by_index()`
-- `vectorstore.py` → `search_by_index(idx)` retrieves the product's vector from Redis and finds its nearest neighbors
+- `search.py` → `recommend_similar(product_name)` semantically searches Redis for the product, retrieves its stored embedding, then finds nearest neighbors
+- `vectorstore.py` → `get_embedding_by_idx(idx)` fetches the product's vector from Redis, then `search_by_vector()` finds similar products
 
 **Example:**
 
@@ -208,8 +208,8 @@ Combines vector search with metadata filtering. First retrieves semantically rel
 Embeds the current product, queries Redis for nearest neighbors. Pure vector similarity — no LLM needed.
 
 **How it works in code:**
-- `search.py` → `find_similar(product_name)` looks up the product's index in metadata, then calls `VectorStore.search_by_index()`
-- `vectorstore.py` → retrieves the product's embedding vector from Redis and finds the closest vectors in the index (excluding itself)
+- `search.py` → `find_similar(product_name)` semantically searches Redis for the product, then uses its stored embedding for vector similarity
+- `vectorstore.py` → `get_embedding_by_idx(idx)` fetches the product's embedding from Redis, then `search_by_vector()` finds the closest vectors (excluding itself)
 
 **Example:**
 
@@ -258,7 +258,8 @@ Stores all product embeddings in a Redis Cloud vector index for fast cosine simi
 - `build_index(json_path)` — One-time: loads products → embeds all → stores in Redis with metadata
 - `load()` — Connects to existing Redis index (instant)
 - `search(query, top_k)` — Embeds query → finds top-K nearest products → returns metadata
-- `search_by_index(product_idx, top_k)` — Given a product index, finds its most similar products (for "Find Similar")
+- `get_embedding_by_idx(product_idx)` — Fetches a product's raw embedding vector from Redis
+- `search_by_vector(vector, top_k, exclude_name)` — Given an embedding vector, finds the most similar products (for "Find Similar")
 
 ### `search.py` — ShoppingAssistant Class (All 6 Use Cases + Semantic Cache)
 

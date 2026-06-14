@@ -1,7 +1,7 @@
 import os
 import json
 import numpy as np
-from typing import List, Dict
+from typing import List, Dict, Optional
 from dotenv import load_dotenv
 from embedding import EmbeddingModel
 from data_loader import load_products
@@ -45,13 +45,12 @@ class VectorStore:
     def __init__(self):
         self.embedding_model = EmbeddingModel()
         self.index = SearchIndex.from_dict(INDEX_SCHEMA, redis_url=REDIS_URL)
-        self.metadata = []
 
     def build_index(self, json_path: str):
         """Load products, embed them, and store in Redis."""
         documents = load_products(json_path)
         embeddings = self.embedding_model.embed_products(documents)
-        self.metadata = [doc["metadata"] for doc in documents]
+        metadata = [doc["metadata"] for doc in documents]
 
         # Create the Redis index
         self.index.create(overwrite=True)
@@ -63,7 +62,7 @@ class VectorStore:
             end = min(start + batch_size, total)
             batch = []
             for i in range(start, end):
-                m = self.metadata[i]
+                m = metadata[i]
                 record = {
                     "name": m.get("name", ""),
                     "brandName": m.get("brandName", ""),
@@ -86,26 +85,12 @@ class VectorStore:
         print(f"[INFO] Redis vector index built with {total} vectors")
 
     def load(self):
-        """Verify Redis index exists and load metadata."""
+        """Verify Redis index exists."""
         if not self.index.exists():
             raise RuntimeError("Redis index 'products' not found. Run build_index first.")
         info = self.index.info()
         num_docs = int(info.get("num_docs", 0))
         print(f"[INFO] Connected to Redis index ({num_docs} vectors)")
-        # Load metadata from Redis (rebuild from stored JSON)
-        self._load_metadata()
-
-    def _load_metadata(self):
-        """Load all metadata from Redis into memory for search_by_index."""
-        import redis as r
-        client = r.from_url(REDIS_URL)
-        keys = sorted(client.keys("product:*"), key=lambda k: k.decode())
-        self.metadata = []
-        for key in keys:
-            data = client.hgetall(key)
-            if b"metadata_json" in data:
-                self.metadata.append(json.loads(data[b"metadata_json"]))
-        print(f"[INFO] Loaded {len(self.metadata)} metadata records")
 
     def search(self, query: str, top_k: int = 10) -> List[Dict]:
         """Search for similar products by query text."""
@@ -113,7 +98,7 @@ class VectorStore:
         q = VectorQuery(
             vector=query_emb[0].tolist(),
             vector_field_name="embedding",
-            return_fields=["metadata_json"],
+            return_fields=["metadata_json", "product_idx"],
             num_results=top_k,
         )
         raw_results = self.index.query(q)
@@ -121,46 +106,36 @@ class VectorStore:
         for doc in raw_results:
             meta = json.loads(doc["metadata_json"])
             score = float(doc.get("vector_distance", 0))
-            results.append({"score": score, "metadata": meta})
+            results.append({"score": score, "metadata": meta, "product_idx": int(doc.get("product_idx", -1))})
         return results
 
-    def search_by_index(self, product_idx: int, top_k: int = 10) -> List[Dict]:
-        """Find similar products given a product index."""
-        if product_idx >= len(self.metadata):
-            return []
-        # Use the product's name as a search query to find its vector
-        product_name = self.metadata[product_idx]["name"]
-        # Get the product's embedding by searching for it
+    def get_embedding_by_idx(self, product_idx: int) -> Optional[np.ndarray]:
+        """Fetch a product's raw embedding from Redis by its index."""
         import redis as r
         client = r.from_url(REDIS_URL)
         keys = client.keys("product:*")
-        # Find the key with matching product_idx
-        target_embedding = None
         for key in keys:
-            data = client.hgetall(key)
-            if b"product_idx" in data:
-                idx = int(data[b"product_idx"])
-                if idx == product_idx:
-                    target_embedding = np.frombuffer(data[b"embedding"], dtype=np.float32)
-                    break
+            idx = client.hget(key, "product_idx")
+            if idx is not None and int(idx) == product_idx:
+                emb_bytes = client.hget(key, "embedding")
+                if emb_bytes:
+                    return np.frombuffer(emb_bytes, dtype=np.float32)
+        return None
 
-        if target_embedding is None:
-            # Fallback: embed the product name
-            target_embedding = self.embedding_model.embed_query(product_name)[0]
-
+    def search_by_vector(self, vector: List[float], top_k: int = 10, exclude_name: str = "") -> List[Dict]:
+        """Find similar products given a vector as a list of floats."""
         q = VectorQuery(
-            vector=target_embedding.tolist(),
+            vector=vector,
             vector_field_name="embedding",
-            return_fields=["metadata_json", "product_idx"],
+            return_fields=["metadata_json"],
             num_results=top_k + 1,
         )
         raw_results = self.index.query(q)
         results = []
         for doc in raw_results:
-            doc_idx = int(doc.get("product_idx", -1))
-            if doc_idx == product_idx:
-                continue
             meta = json.loads(doc["metadata_json"])
+            if exclude_name and meta["name"].lower() == exclude_name.lower():
+                continue
             score = float(doc.get("vector_distance", 0))
             results.append({"score": score, "metadata": meta})
         return results[:top_k]
