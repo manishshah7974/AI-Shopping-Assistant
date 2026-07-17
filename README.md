@@ -255,11 +255,13 @@ When a user asks "vanilla perfume for women", the query vector will be mathemati
 
 Stores all product embeddings in a Redis Cloud vector index for fast cosine similarity search (via `redisvl`).
 
-- `build_index(json_path)` — One-time: loads products → embeds all → stores in Redis with metadata
+- `build_index(json_path)` — One-time: loads products → embeds all → stores in Redis with metadata (batch size: 500 for performance)
 - `load()` — Connects to existing Redis index (instant)
 - `search(query, top_k)` — Embeds query → finds top-K nearest products → returns metadata
-- `get_embedding_by_idx(product_idx)` — Fetches a product's raw embedding vector from Redis
+- `get_embedding_by_sku(sku)` — Fetches a product's raw embedding vector from Redis by SKU
 - `search_by_vector(vector, top_k, exclude_name)` — Given an embedding vector, finds the most similar products (for "Find Similar")
+
+Auto-rebuild: Both `main.py` and `vectorstore.py` detect an empty index (e.g., after interrupted builds or data deletion) and trigger a full rebuild automatically.
 
 ### `search.py` — ShoppingAssistant Class (All 6 Use Cases + Semantic Cache)
 

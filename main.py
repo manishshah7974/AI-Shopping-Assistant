@@ -14,11 +14,17 @@ def build_index():
 
 def main():
     """Interactive shopping assistant."""
-    # Build index if not exists in Redis
+    # Build index if not exists or is empty in Redis
     store = VectorStore()
     if not store.index.exists():
         print("No Redis index found. Building index first (this takes a few minutes)...")
         store.build_index(JSON_PATH)
+    else:
+        info = store.index.info()
+        num_docs = int(info.get("num_docs", 0))
+        if num_docs == 0:
+            print("[WARN] Index exists but is empty. Rebuilding (this takes a few minutes)...")
+            store.build_index(JSON_PATH)
 
     assistant = ShoppingAssistant()
 

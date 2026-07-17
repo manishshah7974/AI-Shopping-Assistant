@@ -123,8 +123,9 @@ Comparison:"""
         if not matches:
             return []
         matched = matches[0]
-        # Step 2: Fetch that product's actual stored embedding from Redis
-        embedding = self.store.get_embedding_by_idx(matched["product_idx"])
+        # Step 2: Fetch that product's actual stored embedding from Redis by SKU (O(1) lookup)
+        sku = matched.get("sku", "")
+        embedding = self.store.get_embedding_by_sku(sku) if sku else None
         if embedding is not None:
             return self.store.search_by_vector(
                 embedding.tolist(), top_k=top_k,
