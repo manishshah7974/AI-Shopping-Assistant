@@ -10,11 +10,11 @@ A RAG-powered (Retrieval-Augmented Generation) shopping assistant for a Kuwait-b
 User Query
     │
     ▼
-┌──────────────┐     ┌──────────────────┐     ┌──────────────┐
-│ Embedding    │────▶│ Redis Vector DB   │────▶│ LLM (Groq)   │
-│ (MiniLM-L6) │     │ (Cosine Search)   │     │ (Llama 3.3)  │
-└──────────────┘     └──────────────────┘     └──────────────┘
-    384-dim vectors    Similarity search      Conversational response
+┌──────────────┐     ┌──────────────────┐     ┌─────────────────┐     ┌──────────────┐
+│ Embedding    │────▶│ Redis Vector DB   │────▶│ Cross-Encoder   │────▶│ LLM (Groq)   │
+│ (MiniLM-L6) │     │ (Cosine Search)   │     │ Reranker        │     │ (Llama 3.3)  │
+└──────────────┘     └──────────────────┘     └─────────────────┘     └──────────────┘
+    384-dim vectors    Top-50 candidates        Rerank → Top-K         Conversational response
                              │
                     ┌────────┴────────┐
                     │ Redis Semantic  │
@@ -23,7 +23,7 @@ User Query
                     Caches LLM responses (24h TTL)
 ```
 
-All 6 use cases share the same core pipeline — the difference is only in what prompt goes to the LLM and whether metadata filtering is applied after retrieval.
+All 6 use cases share the same core pipeline — the difference is only in what prompt goes to the LLM and whether metadata filtering is applied after reranking.
 
 ---
 
@@ -35,6 +35,7 @@ AI Shopping Assistant Project/
 ├── main.py                           ← Interactive CLI entry point
 ├── search.py                         ← ShoppingAssistant class (all 6 use cases + semantic cache)
 ├── vectorstore.py                    ← Redis vector index build/load/search (via redisvl)
+├── reranker.py                       ← Cross-encoder reranker (two-stage retrieval)
 ├── embedding.py                      ← Sentence-transformer embedding model
 ├── data_loader.py                    ← JSON loader + text/metadata structuring
 ├── clean_json.py                     ← One-time data cleaning script
@@ -262,6 +263,22 @@ Stores all product embeddings in a Redis Cloud vector index for fast cosine simi
 - `search_by_vector(vector, top_k, exclude_name)` — Given an embedding vector, finds the most similar products (for "Find Similar")
 
 Auto-rebuild: Both `main.py` and `vectorstore.py` detect an empty index (e.g., after interrupted builds or data deletion) and trigger a full rebuild automatically.
+
+### `reranker.py` — Cross-Encoder Reranker (Two-Stage Retrieval)
+
+Adds a precision reranking stage after the fast bi-encoder retrieval. Uses `cross-encoder/ms-marco-MiniLM-L-6-v2` to score each (query, product) pair jointly through full transformer cross-attention.
+
+- `rerank(query, results, top_k)` — Takes top-50 bi-encoder candidates, scores each against the query, returns top-k sorted by relevance
+
+**Why two stages:**
+- Stage 1 (bi-encoder): Retrieves top-50 from 20,000 products in ~50ms (pre-computed vectors, cosine similarity)
+- Stage 2 (cross-encoder): Reranks 50 candidates in ~200-500ms (full attention between query and each product)
+- Result: Near cross-encoder accuracy at bi-encoder speed
+
+**Example improvement:**
+- Query: "long lasting vanilla perfume for women"
+- Bi-encoder ranks "Vanilla Body Spray" above "24-Hour Vanilla EDP" (both mention vanilla)
+- Cross-encoder correctly promotes "24-Hour Vanilla EDP" because it understands "long lasting" ↔ "24-hour"
 
 ### `search.py` — ShoppingAssistant Class (All 6 Use Cases + Semantic Cache)
 

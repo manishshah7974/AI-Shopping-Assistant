@@ -2,6 +2,7 @@ import os
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
 from vectorstore import VectorStore
+from reranker import Reranker
 
 load_dotenv()
 
@@ -27,6 +28,7 @@ class ShoppingAssistant:
     def __init__(self):
         self.store = VectorStore()
         self.store.load()
+        self.reranker = Reranker()
 
         # LLM setup (Groq)
         from langchain_groq import ChatGroq
@@ -36,8 +38,10 @@ class ShoppingAssistant:
 
     # ─── USE CASE 1: Natural Language Search ───
     def search_products(self, query: str, top_k: int = 5) -> List[Dict]:
-        """Semantic search - returns matching products."""
-        return self.store.search(query, top_k=top_k)
+        """Two-stage retrieval: bi-encoder top-50 → cross-encoder rerank → top-k."""
+        candidates = self.store.search(query, top_k=50)
+        reranked = self.reranker.rerank(query, candidates, top_k=top_k)
+        return reranked
 
     # ─── USE CASE 2: Product Recommendations ───
     def recommend_similar(self, product_name: str, top_k: int = 5) -> List[Dict]:
@@ -46,8 +50,9 @@ class ShoppingAssistant:
 
     # ─── USE CASE 3: Conversational Shopping Assistant ───
     def chat(self, query: str, top_k: int = 5) -> str:
-        """Full RAG: retrieve products + LLM generates conversational response."""
-        results = self.store.search(query, top_k=top_k)
+        """Full RAG: retrieve + rerank products → LLM generates conversational response."""
+        candidates = self.store.search(query, top_k=50)
+        results = self.reranker.rerank(query, candidates, top_k=top_k)
         context = self._format_products(results)
 
         prompt = f"""You are a helpful shopping assistant for a beauty & fragrance e-commerce store based in Kuwait.
@@ -67,9 +72,11 @@ Response:"""
 
     # ─── USE CASE 4: Compare Products ───
     def compare(self, product_a: str, product_b: str) -> str:
-        """Compare two products or brands using RAG."""
-        results_a = self.store.search(product_a, top_k=3)
-        results_b = self.store.search(product_b, top_k=3)
+        """Compare two products or brands using RAG with reranking."""
+        candidates_a = self.store.search(product_a, top_k=20)
+        candidates_b = self.store.search(product_b, top_k=20)
+        results_a = self.reranker.rerank(product_a, candidates_a, top_k=3)
+        results_b = self.reranker.rerank(product_b, candidates_b, top_k=3)
 
         context_a = self._format_products(results_a)
         context_b = self._format_products(results_b)
@@ -88,16 +95,17 @@ Group B - "{product_b}":
 Comparison:"""
         return self._cached_llm_call(prompt, cache_key=f"{product_a} vs {product_b}")
 
-    # ─── USE CASE 5: Smart Filtering (search + metadata filter) ───
+    # ─── USE CASE 5: Smart Filtering (search + rerank + metadata filter) ───
     def filtered_search(self, query: str, top_k: int = 20,
                         max_price: Optional[float] = None,
                         gender: Optional[str] = None,
                         category: Optional[str] = None,
                         in_stock: bool = False) -> List[Dict]:
-        """Semantic search with post-retrieval metadata filtering."""
-        results = self.store.search(query, top_k=top_k)
+        """Two-stage retrieval + reranking + post-retrieval metadata filtering."""
+        candidates = self.store.search(query, top_k=50)
+        reranked = self.reranker.rerank(query, candidates, top_k=top_k)
         filtered = []
-        for r in results:
+        for r in reranked:
             m = r["metadata"]
             if max_price and m["sellingPrice"] > max_price:
                 continue
